@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doublons de génotypes</title>
+<style>
+:root{
+  --ink:#10212E;
+  --paper:#F2F5F7;
+  --card:#FFFFFF;
+  --rule:#D3DCE2;
+  --muted:#5C6F7C;
+  --fam:#1F5FC4;
+  --vic:#12894F;
+  --ned:#B8860B;
+  --pet:#B4283C;
+  --serif:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+  --sans:system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:Consolas,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.55;
+  padding:32px 20px 80px;
+}
+.wrap{max-width:940px;margin:0 auto}
+
+header{border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:26px}
+h1{font-family:var(--serif);font-size:31px;font-weight:400;letter-spacing:-.01em;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+
+section{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:20px 22px;margin-bottom:18px}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 12px;display:flex;align-items:baseline;gap:9px;
+}
+.eyebrow b{color:var(--fam);font-weight:600}
+h2{font-family:var(--serif);font-size:19px;font-weight:400;margin:0 0 10px}
+p.note{color:var(--muted);font-size:13.5px;margin:8px 0 0}
+
+textarea{
+  width:100%;height:150px;font-family:var(--mono);font-size:12.5px;line-height:1.5;
+  border:1px solid var(--rule);border-radius:3px;padding:10px;resize:vertical;
+  background:#FBFCFD;color:var(--ink);
+}
+textarea:focus,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--fam);outline-offset:2px}
+
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px}
+button{
+  font-family:var(--sans);font-size:14px;font-weight:600;
+  background:var(--ink);color:#fff;border:0;border-radius:3px;
+  padding:9px 18px;cursor:pointer;
+}
+button:hover{background:#1D3D53}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule);font-weight:500}
+button.ghost:hover{background:#EDF1F4}
+button[disabled]{opacity:.45;cursor:not-allowed}
+input[type=file]{font-size:13px;font-family:var(--sans)}
+
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px 26px;margin-top:4px}
+label.opt{display:flex;gap:9px;align-items:flex-start;font-size:14px;cursor:pointer}
+label.opt input{margin-top:3px;flex:none}
+label.opt span small{display:block;color:var(--muted);font-size:12.5px;line-height:1.4}
+
+.field{display:flex;align-items:center;gap:9px;font-size:14px}
+.field input[type=number]{
+  width:64px;font-family:var(--mono);font-size:14px;padding:5px 7px;
+  border:1px solid var(--rule);border-radius:3px;
+}
+select{font-family:var(--sans);font-size:14px;padding:6px 8px;border:1px solid var(--rule);border-radius:3px;background:#fff}
+
+.stats{display:flex;flex-wrap:wrap;gap:26px;margin:0 0 18px;padding:0;list-style:none}
+.stats li{min-width:96px}
+.stats .n{font-family:var(--serif);font-size:27px;line-height:1.1;display:block}
+.stats .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+/* signature: distribution des locus partagés */
+.dist{margin:2px 0 0;border-top:1px solid var(--rule)}
+.bin{display:grid;grid-template-columns:76px 1fr 92px;align-items:center;gap:12px;
+     padding:3px 0;border-bottom:1px solid #EBF0F3}
+.bin .lab{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+.bin .bar{height:15px;background:var(--fam);border-radius:1px;min-width:1px;opacity:.35}
+.bin .cnt{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.bin.hit .bar{background:var(--pet);opacity:1}
+.bin.hit .lab,.bin.hit .cnt{color:var(--pet);font-weight:700}
+.bin.gap{border-bottom:1px dashed var(--pet)}
+
+table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13.5px}
+th{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);text-align:left;font-weight:600;
+  border-bottom:1px solid var(--ink);padding:0 10px 6px 0;
+}
+td{padding:5px 10px 5px 0;border-bottom:1px solid #EBF0F3;font-family:var(--mono);font-size:13px}
+td.n{color:var(--muted)}
+tr.full td{color:var(--pet);font-weight:700}
+.scroll{max-height:400px;overflow:auto;margin-top:4px}
+
+.flag{border-left:3px solid var(--ned);background:#FDF8EC;padding:11px 14px;margin-top:14px;font-size:13.5px;border-radius:0 3px 3px 0}
+.flag b{font-weight:600}
+.flag ul{margin:6px 0 0;padding-left:18px}
+.err{border-left-color:var(--pet);background:#FCF0F1}
+.hidden{display:none}
+footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid var(--rule);padding-top:14px}
+code{font-family:var(--mono);font-size:12.5px;background:#EDF1F4;padding:1px 4px;border-radius:2px}
+@media (prefers-reduced-motion:no-preference){.bin .bar{transition:width .35s ease}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Doublons de génotypes</h1>
+  <p class="sub">Compare tous les individus deux à deux et compte les locus identiques.</p>
+</header>
+
+<section>
+  <p class="eyebrow"><b>1</b> Les données</p>
+  <h2>Coller la matrice, ou ouvrir un fichier</h2>
+  <textarea id="data" spellcheck="false" placeholder="1&#9;143163&#9;168168&#9;188192&#9;169197&#9;173177&#9;167167&#9;174178&#9;149169&#9;155183&#9;153157&#10;2&#9;151187&#9;168208&#9;188208&#9;177197&#9;161177&#9;159235&#9;182218&#9;149161&#9;155195&#9;157157"></textarea>
+  <div class="row">
+    <input type="file" id="file" accept=".txt,.csv,.tsv,.dat,text/*">
+    <button class="ghost" type="button" id="demo">Charger un exemple</button>
+    <button class="ghost" type="button" id="clear">Vider</button>
+  </div>
+  <p class="note">Une ligne par individu : l'identifiant, puis les génotypes à 6 chiffres. Séparateur tabulation, virgule, point-virgule ou espaces — détecté tout seul. Les en-têtes et les colonnes qui ne sont pas des génotypes sont ignorés.</p>
+</section>
+
+<section>
+  <p class="eyebrow"><b>2</b> Les règles de comparaison</p>
+  <div class="opts">
+    <label class="opt"><input type="checkbox" id="optOrder" checked>
+      <span>Ignorer l'ordre des allèles<small><code>192176</code> et <code>176192</code> comptent comme le même génotype.</small></span></label>
+    <label class="opt"><input type="checkbox" id="optMiss" checked>
+      <span>Écarter les locus manquants<small>Un locus absent chez l'un des deux n'est ni identique ni différent : il sort du calcul.</small></span></label>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <span class="field">Code des données manquantes <input type="text" id="missCode" value="000000" style="width:88px;font-family:var(--mono);font-size:14px;padding:5px 7px;border:1px solid var(--rule);border-radius:3px"></span>
+  </div>
+  <div class="row" style="margin-top:14px">
+    <span class="field">
+      <select id="mode">
+        <option value="ge">Au moins</option>
+        <option value="eq">Exactement</option>
+      </select>
+      <input type="number" id="seuil" min="0" value="0"> locus identiques
+    </span>
+    <button type="button" id="run">Chercher les doublons</button>
+  </div>
+  <p class="note" id="seuilNote">« Au moins » sert à trouver les doublons et les quasi-doublons. « Exactement » reproduit le comportement de la feuille Maple d'origine.</p>
+</section>
+
+<section id="out" class="hidden">
+  <p class="eyebrow"><b>3</b> Le résultat</p>
+  <ul class="stats" id="stats"></ul>
+  <h2>Répartition des paires selon le nombre de locus identiques</h2>
+  <div class="dist" id="dist"></div>
+  <p class="note">Les vrais doublons se détachent tout en bas : une petite grappe de paires à leur maximum, séparée du gros du nuage. C'est la coupure, pas le seuil choisi d'avance, qui indique où sont les doublons.</p>
+  <div id="flags"></div>
+  <h2 style="margin-top:22px">Paires retenues</h2>
+  <div class="row" style="margin-top:0;margin-bottom:8px">
+    <button class="ghost" type="button" id="csv">Enregistrer en CSV</button>
+    <span class="note" id="shown" style="margin:0"></span>
+  </div>
+  <div class="scroll"><table id="tbl"><thead><tr>
+    <th>Individu A</th><th>Individu B</th><th>Locus identiques</th><th>Locus comparés</th><th>Locus qui diffèrent</th>
+  </tr></thead><tbody></tbody></table></div>
+</section>
+
+<footer>
+  Traduction fidèle de la feuille Maple <i>CALCUL DOUBLONS</i> de Pierre Duchesne, vérifiée sur son jeu d'essai (13 individus, 11 locus, seuil 3&nbsp;: 3 paires, 4 individus — résultat identique).
+  Tout se calcule dans votre navigateur&nbsp;: aucune donnée ne quitte l'ordinateur, et le fichier fonctionne hors ligne, sur Mac comme sur PC.
+</footer>
+
+</div>
+<script>
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+
+var DEMO = "1296\t163175\t180208\t188188\t169197\t169173\t238242\t167183\t174222\t153185\t155155\t161177\n700\t167171\t144208\t188188\t177197\t161177\t224246\t167195\t194202\t169185\t155199\t157169\n701\t135135\t144208\t188192\t169201\t149161\t214214\t167207\t178178\t149185\t139139\t157181\n1298\t143159\t144208\t188188\t169197\t161169\t238238\t167183\t178182\t185185\t187195\t157169\n1299\t155171\t144168\t188212\t169197\t173177\t242246\t183195\t178222\t137153\t139151\t157177\n1290\t155167\t148168\t188188\t177197\t157165\t234234\t207239\t178210\t137185\t163195\t169173\n1301\t151163\t144168\t188188\t177197\t153177\t218246\t167239\t174178\t165185\t155191\t157157\n1294\t143179\t208208\t192192\t177201\t169169\t238238\t187191\t182214\t153161\t143183\t153153\n1287\t143175\t168208\t188188\t169177\t165181\t228250\t167215\t198218\t185185\t151211\t157161\n1289\t155175\t144168\t212212\t169197\t165169\t228228\t167223\t182202\t149165\t135183\t157181\n1292\t167175\t144144\t188192\t177197\t169177\t238246\t167243\t178178\t137161\t163211\t157177\n1288\t143147\t168180\t204212\t177197\t177185\t246254\t167183\t178178\t149185\t163195\t177181\n1295\t143151\t144208\t188204\t193197\t161169\t238238\t159223\t178202\t161169\t143151\t157165";
+
+/* ---------- lecture ---------- */
+function parse(text, missCode){
+  var lines = text.split(/\r?\n/);
+  var rows = [], widths = {}, i, j;
+  for(i=0;i<lines.length;i++){
+    var toks = lines[i].split(/[\t;,]|\s{1,}/).filter(function(t){ return t.length; });
+    if(!toks.length) continue;
+    var g = [], id = null;
+    for(j=0;j<toks.length;j++){
+      if(/^\d{6}$/.test(toks[j])) g.push(toks[j]);
+      else if(id === null && !/^[,;]$/.test(toks[j])) id = toks[j];
+    }
+    if(g.length < 2) continue;
+    if(id === null) id = "ligne " + (i+1);
+    rows.push({ id:id, g:g, line:i+1 });
+    widths[g.length] = (widths[g.length]||0) + 1;
+  }
+  // largeur dominante = nombre de locus
+  var L = 0, best = -1;
+  for(var w in widths){ if(widths[w] > best){ best = widths[w]; L = +w; } }
+  var kept = [], ragged = [];
+  for(i=0;i<rows.length;i++){
+    if(rows[i].g.length === L) kept.push(rows[i]);
+    else ragged.push(rows[i]);
+  }
+  return { rows:kept, L:L, ragged:ragged };
+}
+
+function normalize(rows, L, ignoreOrder, missCode){
+  var out = new Array(rows.length), unsorted = 0, missing = 0;
+  for(var i=0;i<rows.length;i++){
+    var v = new Array(L);
+    for(var k=0;k<L;k++){
+      var s = rows[i].g[k];
+      if(s === missCode){ v[k] = null; missing++; continue; }
+      var a = s.slice(0,3), b = s.slice(3);
+      if(a > b){ unsorted++; if(ignoreOrder){ var t=a; a=b; b=t; } }
+      v[k] = a + b;
+    }
+    out[i] = v;
+  }
+  return { v:out, unsorted:unsorted, missing:missing };
+}
+
+/* ---------- comparaison ---------- */
+function compare(vals, L, dropMissing){
+  var n = vals.length, dist = new Array(L+1), i, j, k, nFull = 0, total = 0;
+  for(k=0;k<=L;k++) dist[k] = 0;
+  for(i=0;i<n;i++){
+    var a = vals[i];
+    for(j=i+1;j<n;j++){
+      var b = vals[j], same = 0, cmp = 0;
+      for(k=0;k<L;k++){
+        var x = a[k], y = b[k];
+        if(dropMissing && (x === null || y === null)) continue;
+        cmp++;
+        if(x === y) same++;
+      }
+      dist[same]++; total++;
+      if(cmp > 0 && same === cmp) nFull++;
+    }
+  }
+  return { dist:dist, nFull:nFull, total:total };
+}
+
+// Deuxième passe : ne retient que les paires demandées, pour ne pas garder
+// des millions de paires en mémoire.
+var CAP = 200000;
+function collect(vals, L, dropMissing, mode, seuil){
+  var n = vals.length, list = [], total = 0, i, j, k;
+  for(i=0;i<n;i++){
+    var a = vals[i];
+    for(j=i+1;j<n;j++){
+      var b = vals[j], same = 0, cmp = 0;
+      for(k=0;k<L;k++){
+        var x = a[k], y = b[k];
+        if(dropMissing && (x === null || y === null)) continue;
+        cmp++;
+        if(x === y) same++;
+      }
+      if(mode === "eq" ? same === seuil : same >= seuil){
+        total++;
+        if(list.length < CAP) list.push([i, j, same, cmp]);
+      }
+    }
+  }
+  return { list:list, total:total };
+}
+
+/* ---------- affichage ---------- */
+var STATE = null;
+
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+function render(){
+  var rows = STATE.rows, L = STATE.L, dist = STATE.dist;
+  var mode = $("mode").value, seuil = Math.max(0, Math.min(L, +$("seuil").value || 0));
+
+  var got = collect(STATE.vals, L, STATE.dropMissing, mode, seuil);
+  var hit = got.list;
+  hit.sort(function(a,b){ return b[2] - a[2] || a[0] - b[0] || a[1] - b[1]; });
+
+  var ids = {}, nId = 0, i;
+  for(i=0;i<hit.length;i++){
+    if(!ids[hit[i][0]]){ ids[hit[i][0]] = 1; nId++; }
+    if(!ids[hit[i][1]]){ ids[hit[i][1]] = 1; nId++; }
+  }
+  var nFull = STATE.nFull;
+
+  $("stats").innerHTML =
+    stat(rows.length, "individus") + stat(L, "locus") +
+    stat(STATE.total.toLocaleString("fr-CA"), "paires comparées") +
+    stat(got.total.toLocaleString("fr-CA"), "paires retenues") +
+    stat(nId.toLocaleString("fr-CA"), "individus visés");
+
+  // distribution
+  var max = 0, k;
+  for(k=0;k<=L;k++) if(dist[k] > max) max = dist[k];
+  var html = "", seenGap = false;
+  for(k=L;k>=0;k--){
+    var on = (mode === "eq") ? (k === seuil) : (k >= seuil);
+    var w = dist[k] ? Math.max(1.2, Math.sqrt(dist[k]/max) * 100) : 0;
+    var gap = (!seenGap && dist[k] === 0 && k < L) ? " gap" : "";
+    if(gap) seenGap = true;
+    html += '<div class="bin' + (on ? " hit" : "") + gap + '">' +
+            '<span class="lab">' + k + " / " + L + "</span>" +
+            '<span class="bar" style="width:' + w.toFixed(1) + '%"></span>' +
+            '<span class="cnt">' + (dist[k] ? dist[k].toLocaleString("fr-CA") : "—") + "</span></div>";
+  }
+  $("dist").innerHTML = html;
+
+  // signalements
+  var f = "";
+  if(STATE.dupIds.length)
+    f += flag("Identifiants présents plus d'une fois dans le fichier : <b>" + STATE.dupIds.map(esc).join(", ") +
+              "</b>. Ce sont des doublons de saisie, pas de génotype — à corriger avant l'analyse.", true);
+  if(STATE.unsorted)
+    f += flag("<b>" + STATE.unsorted + "</b> génotype" + (STATE.unsorted>1?"s ont":" a") +
+              " leurs allèles en ordre décroissant (par ex. <code>192176</code>). " +
+              ($("optOrder").checked
+                ? "Ils sont ramenés à l'ordre croissant avant la comparaison."
+                : "Sans l'option « ignorer l'ordre des allèles », ils ne s'apparieront jamais avec la forme croissante."), !$("optOrder").checked);
+  if(STATE.missing)
+    f += flag("<b>" + STATE.missing + "</b> génotype" + (STATE.missing>1?"s manquants":" manquant") +
+              " (<code>" + esc(STATE.missCode) + "</code>). " +
+              ($("optMiss").checked
+                ? "Ces locus sont retirés du décompte, paire par paire — la colonne « locus comparés » indique le nombre réel."
+                : "Attention : deux individus qui n'ont ni l'un ni l'autre de génotype à un locus y sont comptés comme identiques."), !$("optMiss").checked);
+  if(STATE.ragged.length)
+    f += flag("<b>" + STATE.ragged.length + "</b> ligne" + (STATE.ragged.length>1?"s écartées":" écartée") +
+              " parce qu'elle" + (STATE.ragged.length>1?"s n'avaient":" n'avait") + " pas " + L + " génotypes : ligne" +
+              (STATE.ragged.length>1?"s ":" ") + STATE.ragged.slice(0,12).map(function(r){ return r.line; }).join(", ") +
+              (STATE.ragged.length>12 ? "…" : "") + ".", true);
+  if(nFull && mode === "ge" && seuil < L)
+    f += flag("<b>" + nFull + "</b> paire" + (nFull>1?"s sont identiques":" est identique") +
+              " sur la totalité des locus comparés : ce sont les doublons les plus probables.", false);
+  $("flags").innerHTML = f;
+
+  // tableau
+  var body = [], lim = Math.min(hit.length, 3000);
+  for(i=0;i<lim;i++){
+    var p = hit[i], diff = p[3] - p[2];
+    body.push('<tr' + (diff === 0 && p[3] > 0 ? ' class="full"' : "") + "><td>" + esc(rows[p[0]].id) +
+              "</td><td>" + esc(rows[p[1]].id) + '</td><td>' + p[2] +
+              '</td><td class="n">' + p[3] + '</td><td class="n">' + diff + "</td></tr>");
+  }
+  $("tbl").tBodies[0].innerHTML = body.join("") ||
+    '<tr><td colspan="5" style="color:var(--muted);font-family:var(--sans);padding:14px 0">Aucune paire ne satisfait ce critère. Regardez la répartition ci-dessus pour choisir un seuil réaliste.</td></tr>';
+  $("shown").textContent = got.total > lim
+    ? "Les " + lim.toLocaleString("fr-CA") + " premières paires sont affichées" +
+      (got.total > hit.length ? " ; le CSV en contient " + hit.length.toLocaleString("fr-CA") + " sur " + got.total.toLocaleString("fr-CA") + "."
+                              : " ; le CSV les contient toutes.")
+    : "";
+
+  STATE.hit = hit;
+  $("out").classList.remove("hidden");
+}
+
+function stat(n, k){ return "<li><span class='n'>" + n + "</span><span class='k'>" + k + "</span></li>"; }
+function flag(html, warn){ return '<div class="flag' + (warn ? " err" : "") + '">' + html + "</div>"; }
+
+/* ---------- actions ---------- */
+function run(){
+  var txt = $("data").value.trim();
+  if(!txt){ alert("Collez d'abord une matrice de génotypes, ou ouvrez un fichier."); return; }
+  var missCode = $("missCode").value.trim() || "000000";
+  var p = parse(txt, missCode);
+  if(p.rows.length < 2){
+    $("out").classList.add("hidden");
+    alert("Je ne trouve pas au moins deux individus avec des génotypes à 6 chiffres. Vérifiez le fichier.");
+    return;
+  }
+  var seen = {}, dupIds = [];
+  for(var i=0;i<p.rows.length;i++){
+    var id = p.rows[i].id;
+    if(seen[id] === 1){ dupIds.push(id); seen[id] = 2; } else if(!seen[id]) seen[id] = 1;
+  }
+  var nz = normalize(p.rows, p.L, $("optOrder").checked, missCode);
+  var c = compare(nz.v, p.L, $("optMiss").checked);
+
+  STATE = { rows:p.rows, L:p.L, ragged:p.ragged, dupIds:dupIds, missCode:missCode,
+            unsorted:nz.unsorted, missing:nz.missing, vals:nz.v, dropMissing:$("optMiss").checked,
+            dist:c.dist, nFull:c.nFull, total:c.total, hit:[] };
+
+  var s = $("seuil");
+  s.max = p.L;
+  if(!s.dataset.touched) s.value = p.L;
+  render();
+  $("out").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+$("run").addEventListener("click", run);
+$("demo").addEventListener("click", function(){ $("data").value = DEMO; });
+$("clear").addEventListener("click", function(){ $("data").value = ""; $("out").classList.add("hidden"); });
+$("seuil").addEventListener("input", function(){ this.dataset.touched = "1"; if(STATE) render(); });
+$("mode").addEventListener("change", function(){ if(STATE) render(); });
+["optOrder","optMiss","missCode"].forEach(function(id){
+  $(id).addEventListener("change", function(){ if(STATE) run(); });
+});
+$("file").addEventListener("change", function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var r = new FileReader();
+  r.onload = function(){ $("data").value = r.result; run(); };
+  r.readAsText(f);
+});
+$("csv").addEventListener("click", function(){
+  if(!STATE || !STATE.hit.length) return;
+  var out = ["individu_A;individu_B;locus_identiques;locus_compares;locus_differents"];
+  for(var i=0;i<STATE.hit.length;i++){
+    var p = STATE.hit[i];
+    out.push([STATE.rows[p[0]].id, STATE.rows[p[1]].id, p[2], p[3], p[3]-p[2]].join(";"));
+  }
+  var blob = new Blob(["\ufeff" + out.join("\r\n")], { type:"text/csv;charset=utf-8" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "doublons.csv";
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+});
+</script>
+</body>
+</html>
