@@ -114,7 +114,7 @@ code{font-family:var(--mono);font-size:12.5px;background:#EDF1F4;padding:1px 4px
 
 <header>
   <h1>Doublons de génotypes</h1>
-  <p class="sub">Compare tous les individus deux à deux et compte les locus identiques.</p>
+  <p class="sub">Compare tous les individus deux à deux et compte les locus identiques. Gère les locus à 2, 3 ou 4 allèles, mélangés dans un même fichier.</p>
 </header>
 
 <section>
@@ -123,10 +123,11 @@ code{font-family:var(--mono);font-size:12.5px;background:#EDF1F4;padding:1px 4px
   <textarea id="data" spellcheck="false" placeholder="1&#9;143163&#9;168168&#9;188192&#9;169197&#9;173177&#9;167167&#9;174178&#9;149169&#9;155183&#9;153157&#10;2&#9;151187&#9;168208&#9;188208&#9;177197&#9;161177&#9;159235&#9;182218&#9;149161&#9;155195&#9;157157"></textarea>
   <div class="row">
     <input type="file" id="file" accept=".txt,.csv,.tsv,.dat,text/*">
-    <button class="ghost" type="button" id="demo">Charger un exemple</button>
+    <button class="ghost" type="button" id="demo">Exemple diploïde</button>
+    <button class="ghost" type="button" id="demoTri">Exemple mixte</button>
     <button class="ghost" type="button" id="clear">Vider</button>
   </div>
-  <p class="note">Une ligne par individu : l'identifiant, puis les génotypes à 6 chiffres. Séparateur tabulation, virgule, point-virgule ou espaces — détecté tout seul. Les en-têtes et les colonnes qui ne sont pas des génotypes sont ignorés.</p>
+  <p class="note">Une ligne par individu : l'identifiant, puis les génotypes. Chaque allèle est scoré sur 3 chiffres, donc un locus diploïde fait 6 chiffres (<code>163175</code>), un triploïde 9 (<code>163175188</code>) et un tétraploïde 12 (<code>163175188200</code>) ; la ploïdie est déduite automatiquement. Les allèles séparés par <code>/</code>, <code>-</code> ou <code>|</code> sont aussi acceptés. Séparateur de colonnes tabulation, virgule, point-virgule ou espaces — détecté tout seul. Les en-têtes et les colonnes qui ne sont pas des génotypes sont ignorés.</p>
 </section>
 
 <section>
@@ -171,7 +172,7 @@ code{font-family:var(--mono);font-size:12.5px;background:#EDF1F4;padding:1px 4px
 </section>
 
 <footer>
-  Traduction fidèle de la feuille Maple <i>CALCUL DOUBLONS</i> de Pierre Duchesne, vérifiée sur son jeu d'essai (13 individus, 11 locus, seuil 3&nbsp;: 3 paires, 4 individus — résultat identique).
+  D'après la feuille Maple <i>CALCUL DOUBLONS</i> de Pierre Duchesne. La logique d'origine (diploïdes) reste vérifiée sur son jeu d'essai&nbsp;: 13 individus, 11 locus, seuil 3&nbsp;→ 3 paires, 4 individus, résultat identique. Cette version étend la comparaison aux triploïdes, détectés automatiquement d'après le nombre d'allèles.
   Tout se calcule dans votre navigateur&nbsp;: aucune donnée ne quitte l'ordinateur, et le fichier fonctionne hors ligne, sur Mac comme sur PC.
 </footer>
 
@@ -183,16 +184,38 @@ var $ = function(id){ return document.getElementById(id); };
 var DEMO = "1296\t163175\t180208\t188188\t169197\t169173\t238242\t167183\t174222\t153185\t155155\t161177\n700\t167171\t144208\t188188\t177197\t161177\t224246\t167195\t194202\t169185\t155199\t157169\n701\t135135\t144208\t188192\t169201\t149161\t214214\t167207\t178178\t149185\t139139\t157181\n1298\t143159\t144208\t188188\t169197\t161169\t238238\t167183\t178182\t185185\t187195\t157169\n1299\t155171\t144168\t188212\t169197\t173177\t242246\t183195\t178222\t137153\t139151\t157177\n1290\t155167\t148168\t188188\t177197\t157165\t234234\t207239\t178210\t137185\t163195\t169173\n1301\t151163\t144168\t188188\t177197\t153177\t218246\t167239\t174178\t165185\t155191\t157157\n1294\t143179\t208208\t192192\t177201\t169169\t238238\t187191\t182214\t153161\t143183\t153153\n1287\t143175\t168208\t188188\t169177\t165181\t228250\t167215\t198218\t185185\t151211\t157161\n1289\t155175\t144168\t212212\t169197\t165169\t228228\t167223\t182202\t149165\t135183\t157181\n1292\t167175\t144144\t188192\t177197\t169177\t238246\t167243\t178178\t137161\t163211\t157177\n1288\t143147\t168180\t204212\t177197\t177185\t246254\t167183\t178178\t149185\t163195\t177181\n1295\t143151\t144208\t188204\t193197\t161169\t238238\t159223\t178202\t161169\t143151\t157165";
 
 /* ---------- lecture ---------- */
+// Découpe un jeton en allèles. Deux notations acceptées :
+//   • chiffres collés, longueur multiple de 3 et >= 6  -> tranches de 3 chiffres
+//       163175    -> [163,175]        (diploïde)
+//       163175188 -> [163,175,188]    (triploïde)
+//   • allèles séparés par / - ou |    -> découpage sur le séparateur
+//       163/175/188 -> [163,175,188]
+// Retourne un tableau d'allèles, ou null si le jeton n'est pas un génotype.
+function splitGeno(s){
+  if(/[\/\-|]/.test(s)){
+    var parts = s.split(/[\/\-|]/).filter(function(t){ return t.length; });
+    if(parts.length >= 2 && parts.every(function(t){ return /^\d+$/.test(t); })) return parts;
+    return null;
+  }
+  if(/^\d+$/.test(s) && s.length >= 6 && s.length % 3 === 0){
+    var out = [];
+    for(var i=0;i<s.length;i+=3) out.push(s.slice(i,i+3));
+    return out;
+  }
+  return null;
+}
+
 function parse(text, missCode){
   var lines = text.split(/\r?\n/);
-  var rows = [], widths = {}, i, j;
+  var rows = [], widths = {}, badnum = 0, i, j;
   for(i=0;i<lines.length;i++){
     var toks = lines[i].split(/[\t;,]|\s{1,}/).filter(function(t){ return t.length; });
     if(!toks.length) continue;
     var g = [], id = null;
     for(j=0;j<toks.length;j++){
-      if(/^\d{6}$/.test(toks[j])) g.push(toks[j]);
+      if(splitGeno(toks[j])) g.push(toks[j]);
       else if(id === null && !/^[,;]$/.test(toks[j])) id = toks[j];
+      else if(/^\d{4,}$/.test(toks[j])) badnum++;   // ressemble à un génotype mais largeur invalide
     }
     if(g.length < 2) continue;
     if(id === null) id = "ligne " + (i+1);
@@ -207,23 +230,32 @@ function parse(text, missCode){
     if(rows[i].g.length === L) kept.push(rows[i]);
     else ragged.push(rows[i]);
   }
-  return { rows:kept, L:L, ragged:ragged };
+  return { rows:kept, L:L, ragged:ragged, badnum:badnum };
 }
 
 function normalize(rows, L, ignoreOrder, missCode){
   var out = new Array(rows.length), unsorted = 0, missing = 0;
+  var ploidyCount = {}, incons = [];
   for(var i=0;i<rows.length;i++){
-    var v = new Array(L);
+    var v = new Array(L), seenP = 0, mixed = false;
     for(var k=0;k<L;k++){
       var s = rows[i].g[k];
-      if(s === missCode){ v[k] = null; missing++; continue; }
-      var a = s.slice(0,3), b = s.slice(3);
-      if(a > b){ unsorted++; if(ignoreOrder){ var t=a; a=b; b=t; } }
-      v[k] = a + b;
+      var al = splitGeno(s);
+      // manquant : code explicite, ou tous les allèles à zéro (quelle que soit la ploïdie)
+      if(s === missCode || al.every(function(a){ return /^0+$/.test(a); })){ v[k] = null; missing++; continue; }
+      ploidyCount[al.length] = (ploidyCount[al.length]||0) + 1;
+      if(seenP === 0) seenP = al.length; else if(seenP !== al.length) mixed = true;
+      // ordre : on garde les répétitions (AAB reste AAB), on ne fait que trier
+      var isSorted = true;
+      for(var q=1;q<al.length;q++){ if(al[q-1] > al[q]){ isSorted = false; break; } }
+      if(!isSorted) unsorted++;
+      var use = ignoreOrder ? al.slice().sort() : al;
+      v[k] = use.join("|");
     }
+    if(mixed) incons.push(rows[i].id);
     out[i] = v;
   }
-  return { v:out, unsorted:unsorted, missing:missing };
+  return { v:out, unsorted:unsorted, missing:missing, ploidyCount:ploidyCount, incons:incons };
 }
 
 /* ---------- comparaison ---------- */
@@ -292,8 +324,13 @@ function render(){
   }
   var nFull = STATE.nFull;
 
+  var pc = STATE.ploidyCount || {};
+  var levels = Object.keys(pc).map(Number).sort(function(a,b){ return a-b; });
+  var plabel = levels.length ? (levels.length === 1 ? String(levels[0]) : levels[0] + "–" + levels[levels.length-1]) : "—";
+
   $("stats").innerHTML =
     stat(rows.length, "individus") + stat(L, "locus") +
+    stat(plabel, "allèles par locus") +
     stat(STATE.total.toLocaleString("fr-CA"), "paires comparées") +
     stat(got.total.toLocaleString("fr-CA"), "paires retenues") +
     stat(nId.toLocaleString("fr-CA"), "individus visés");
@@ -336,6 +373,11 @@ function render(){
               " parce qu'elle" + (STATE.ragged.length>1?"s n'avaient":" n'avait") + " pas " + L + " génotypes : ligne" +
               (STATE.ragged.length>1?"s ":" ") + STATE.ragged.slice(0,12).map(function(r){ return r.line; }).join(", ") +
               (STATE.ragged.length>12 ? "…" : "") + ".", true);
+  if(STATE.badnum)
+    f += flag("<b>" + STATE.badnum + "</b> valeur" + (STATE.badnum>1?"s numériques n'ont":" numérique n'a") +
+              " pas pu être lue" + (STATE.badnum>1?"s":"") + " comme génotype : nombre de chiffres non multiple de 3, " +
+              "ou allèle à moins de 3 chiffres. Chaque allèle doit être scoré sur 3 chiffres " +
+              "(un allèle inférieur à 100 s'écrit alors avec un zéro devant, ex. <code>097</code>). Vérifiez ces valeurs.", true);
   if(nFull && mode === "ge" && seuil < L)
     f += flag("<b>" + nFull + "</b> paire" + (nFull>1?"s sont identiques":" est identique") +
               " sur la totalité des locus comparés : ce sont les doublons les plus probables.", false);
@@ -372,7 +414,7 @@ function run(){
   var p = parse(txt, missCode);
   if(p.rows.length < 2){
     $("out").classList.add("hidden");
-    alert("Je ne trouve pas au moins deux individus avec des génotypes à 6 chiffres. Vérifiez le fichier.");
+    alert("Je ne trouve pas au moins deux individus avec des génotypes. Chaque allèle doit être scoré sur 3 chiffres (6 chiffres pour un diploïde, 9 pour un triploïde). Vérifiez le fichier.");
     return;
   }
   var seen = {}, dupIds = [];
@@ -385,6 +427,7 @@ function run(){
 
   STATE = { rows:p.rows, L:p.L, ragged:p.ragged, dupIds:dupIds, missCode:missCode,
             unsorted:nz.unsorted, missing:nz.missing, vals:nz.v, dropMissing:$("optMiss").checked,
+            ploidyCount:nz.ploidyCount, incons:nz.incons, badnum:p.badnum,
             dist:c.dist, nFull:c.nFull, total:c.total, hit:[] };
 
   var s = $("seuil");
@@ -394,8 +437,23 @@ function run(){
   $("out").scrollIntoView({ behavior:"smooth", block:"start" });
 }
 
+// Petit exemple illustratif mêlant diploïdes (6 chiffres) et triploïdes (9 chiffres).
+// A1=A2 (doublon diploïde), T1=T2 (doublon triploïde) ; M1 a une ploïdie incohérente ;
+// T4 montre un triploïde avec allèle répété (163,163,175).
+var DEMO_TRI = "A1\t163175\t168208\t188188\t169197\t155183\n" +
+               "A2\t163175\t168208\t188188\t169197\t155183\n" +
+               "A3\t151187\t168168\t188192\t177197\t157157\n" +
+               "T1\t163175188\t168208214\t188188188\t169197201\t155183191\n" +
+               "T2\t163175188\t168208214\t188188188\t169197201\t155183191\n" +
+               "T3\t151187193\t168168168\t188192200\t177197205\t157157163\n" +
+               "T4\t163163175\t168208214\t188188188\t169197201\t155183191\n" +
+               "Q1\t163175188200\t168208214220\t188188188188\t169197201205\t155183191199\n" +
+               "Q2\t163175188200\t168208214220\t188188188188\t169197201205\t155183191199\n" +
+               "M1\t163175\t168208214\t188188\t169197\t155183";
+
 $("run").addEventListener("click", run);
 $("demo").addEventListener("click", function(){ $("data").value = DEMO; });
+$("demoTri").addEventListener("click", function(){ $("data").value = DEMO_TRI; });
 $("clear").addEventListener("click", function(){ $("data").value = ""; $("out").classList.add("hidden"); });
 $("seuil").addEventListener("input", function(){ this.dataset.touched = "1"; if(STATE) render(); });
 $("mode").addEventListener("change", function(){ if(STATE) render(); });
